@@ -22,6 +22,7 @@ import 'liquid_glass_render_scope.dart';
 import 'liquid_glass_settings.dart';
 import 'multi_shader_builder.dart';
 import 'render_liquid_glass_geometry.dart';
+import 'rendering/glass_shadow.dart';
 import 'rendering/liquid_glass_render_object.dart';
 import 'shaders.dart';
 
@@ -619,55 +620,12 @@ class RenderLiquidGlassLayer extends LiquidGlassRenderObject
 
     // ── Pass 0: SDF Shadows ──────────────────────────────────────────────────
     if (shadows.isNotEmpty && geometryImage != null) {
-      final localBounds = geometryLocalBounds.shift(offset);
-
-      for (final shadow in shadows) {
-        if (shadow.color.a == 0) continue;
-
-        // Inflate clip rect to ensure large blurs aren't cut off
-        final shadowClip = localBounds.shift(shadow.offset).inflate(
-              shadow.spreadRadius + shadow.blurRadius * 3,
-            );
-
-        context.canvas.saveLayer(shadowClip, Paint());
-
-        // 1. Draw the geometry matte as a blurred, tinted shadow
-        final shadowPaint = Paint()
-          ..colorFilter = ColorFilter.mode(shadow.color, BlendMode.srcIn)
-          ..imageFilter = ImageFilter.blur(
-            sigmaX: shadow.blurSigma,
-            sigmaY: shadow.blurSigma,
-            tileMode: TileMode.decal,
-          );
-
-        context.canvas.drawImageRect(
-          geometryImage!,
-          Rect.fromLTWH(
-            0,
-            0,
-            geometryImage!.width.toDouble(),
-            geometryImage!.height.toDouble(),
-          ),
-          localBounds.shift(shadow.offset),
-          shadowPaint,
-        );
-
-        // 2. GPU Cutout (dstOut): punch out the interior using the same geometry
-        // matte to prevent the glass from blurring its own shadow (dirty rim).
-        context.canvas.drawImageRect(
-          geometryImage!,
-          Rect.fromLTWH(
-            0,
-            0,
-            geometryImage!.width.toDouble(),
-            geometryImage!.height.toDouble(),
-          ),
-          localBounds,
-          Paint()..blendMode = BlendMode.dstOut,
-        );
-
-        context.canvas.restore();
-      }
+      paintGlassShadows(
+        context.canvas,
+        geometryImage!,
+        geometryLocalBounds.shift(offset),
+        shadows,
+      );
     }
 
     // ── Pass 1: Blur ─────────────────────────────────────────────────────────
